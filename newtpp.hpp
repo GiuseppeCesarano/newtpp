@@ -193,9 +193,9 @@ inline void reflow_text(std::string& text, const int WIDTH)
   return filler;
 }
 
-void inline resize_screen(const int REDRAW)
+void inline resize_screen(const bool REDRAW)
 {
-  newtResizeScreen(REDRAW);
+  newtResizeScreen(static_cast<int>(REDRAW));
 }
 
 void inline delay(const unsigned int USECS)
@@ -410,6 +410,7 @@ class conditional_ownership_ptr {
 struct exit_info;
 class component {
   friend exit_info;
+
   public:
   using ptr_type = conditional_ownership_ptr<std::remove_pointer<newtComponent>::type>;
 
