@@ -1,0 +1,4 @@
+BasedOnStyle: WebKit
+IndentWidth: 2
+Standard: Latest
+IndentPPDirectives: BeforeHash
