@@ -86,12 +86,172 @@ struct position : public size_base<int> {
   }
 };
 
+namespace theme {
+  struct colors {
+    std::string_view root_fg;
+    std::string_view root_bg;
+    std::string_view border_fg;
+    std::string_view border_bg;
+    std::string_view window_fg;
+    std::string_view window_bg;
+    std::string_view shadow_fg;
+    std::string_view shadow_bg;
+    std::string_view title_fg;
+    std::string_view title_bg;
+    std::string_view button_fg;
+    std::string_view button_bg;
+    std::string_view act_button_fg;
+    std::string_view act_button_bg;
+    std::string_view checkbox_fg;
+    std::string_view checkbox_bg;
+    std::string_view act_checkbox_fg;
+    std::string_view act_checkbox_bg;
+    std::string_view entry_fg;
+    std::string_view entry_bg;
+    std::string_view label_fg;
+    std::string_view label_bg;
+    std::string_view listbox_fg;
+    std::string_view listbox_bg;
+    std::string_view act_listbox_fg;
+    std::string_view act_listbox_bg;
+    std::string_view textbox_fg;
+    std::string_view textbox_bg;
+    std::string_view act_textbox_fg;
+    std::string_view act_textbox_bg;
+    std::string_view help_line_fg;
+    std::string_view help_line_bg;
+    std::string_view root_text_fg;
+    std::string_view root_text_bg;
+    std::string_view empty_scale;
+    std::string_view full_scale;
+    std::string_view disabled_entry_fg;
+    std::string_view disabled_entry_bg;
+    std::string_view compact_button_fg;
+    std::string_view compact_button_bg;
+    std::string_view act_sel_listbox_fg;
+    std::string_view act_sel_listbox_bg;
+    std::string_view sel_listbox_fg;
+    std::string_view sel_listbox_bg;
+
+    constexpr explicit operator newtColors() const
+    {
+      return {
+        // newt takes char* to construct themes, so this is necessary
+        // NOLINTBEGIN(cppcoreguidelines-pro-type-const-cast)
+        .rootFg = const_cast<char*>(root_fg.data()),
+        .rootBg = const_cast<char*>(root_bg.data()),
+        .borderFg = const_cast<char*>(border_fg.data()),
+        .borderBg = const_cast<char*>(border_bg.data()),
+        .windowFg = const_cast<char*>(window_fg.data()),
+        .windowBg = const_cast<char*>(window_bg.data()),
+        .shadowFg = const_cast<char*>(shadow_fg.data()),
+        .shadowBg = const_cast<char*>(shadow_bg.data()),
+        .titleFg = const_cast<char*>(title_fg.data()),
+        .titleBg = const_cast<char*>(title_bg.data()),
+        .buttonFg = const_cast<char*>(button_fg.data()),
+        .buttonBg = const_cast<char*>(button_bg.data()),
+        .actButtonFg = const_cast<char*>(act_button_fg.data()),
+        .actButtonBg = const_cast<char*>(act_button_bg.data()),
+        .checkboxFg = const_cast<char*>(checkbox_fg.data()),
+        .checkboxBg = const_cast<char*>(checkbox_bg.data()),
+        .actCheckboxFg = const_cast<char*>(act_checkbox_fg.data()),
+        .actCheckboxBg = const_cast<char*>(act_checkbox_bg.data()),
+        .entryFg = const_cast<char*>(entry_fg.data()),
+        .entryBg = const_cast<char*>(entry_bg.data()),
+        .labelFg = const_cast<char*>(label_fg.data()),
+        .labelBg = const_cast<char*>(label_bg.data()),
+        .listboxFg = const_cast<char*>(listbox_fg.data()),
+        .listboxBg = const_cast<char*>(listbox_bg.data()),
+        .actListboxFg = const_cast<char*>(act_listbox_fg.data()),
+        .actListboxBg = const_cast<char*>(act_listbox_bg.data()),
+        .textboxFg = const_cast<char*>(textbox_fg.data()),
+        .textboxBg = const_cast<char*>(textbox_bg.data()),
+        .actTextboxFg = const_cast<char*>(act_textbox_fg.data()),
+        .actTextboxBg = const_cast<char*>(act_textbox_bg.data()),
+        .helpLineFg = const_cast<char*>(help_line_fg.data()),
+        .helpLineBg = const_cast<char*>(help_line_bg.data()),
+        .rootTextFg = const_cast<char*>(root_text_fg.data()),
+        .rootTextBg = const_cast<char*>(root_text_bg.data()),
+        .emptyScale = const_cast<char*>(empty_scale.data()),
+        .fullScale = const_cast<char*>(full_scale.data()),
+        .disabledEntryFg = const_cast<char*>(disabled_entry_fg.data()),
+        .disabledEntryBg = const_cast<char*>(disabled_entry_bg.data()),
+        .compactButtonFg = const_cast<char*>(compact_button_fg.data()),
+        .compactButtonBg = const_cast<char*>(compact_button_bg.data()),
+        .actSelListboxFg = const_cast<char*>(act_sel_listbox_fg.data()),
+        .actSelListboxBg = const_cast<char*>(act_sel_listbox_bg.data()),
+        .selListboxFg = const_cast<char*>(sel_listbox_fg.data()),
+        .selListboxBg = const_cast<char*>(sel_listbox_bg.data())
+        // NOLINTEND(cppcoreguidelines-pro-type-const-cast)
+      };
+    }
+  };
+
+  static void set(const colors& THEME)
+  {
+    newtSetColors(static_cast<newtColors>(THEME));
+  }
+
+  const static colors ONE_DARK {
+    "#abb2bf", "#282c34", /* root fg, bg */
+    "#282c34", "#5c6370", /* border fg, bg */
+    "#101215", "#5c6370", /* window fg, bg */
+    "#abb2bf", "#101215", /* shadow fg, bg */
+    "#61afef", "#5c6370", /* title fg, bg */
+    "#282c34", "#e06c75", /* button fg, bg */
+    "#e06c75", "#282c34", /* active button fg, bg */
+    "#282c34", "#56b6c2", /* checkbox fg, bg */
+    "#282c34", "#c678dd", /* active checkbox fg, bg */
+    "#abb2bf", "#5c6370", /* entry box fg, bg */
+    "#abb2bf", "#5c6370", /* label fg, bg */
+    "#282c34", "#56b6c2", /* listbox fg, bg */
+    "#282c34", "#c678dd", /* active listbox fg, bg */
+    "#abb2bf", "#282c34", /* textbox fg, bg */
+    "#282c34", "#e06c75", /* active textbox fg, bg */
+    "#abb2bf", "#282c34", /* help line */
+    "#abb2bf", "#282c34", /* root text */
+    "#e06c75", /* scale full*/
+    "#98c379", /* scale empty*/
+    "#abb2bf", "#282c34", /* disabled entry fg, bg */
+    "#282c34", "#e06c75", /* compact button fg, bg */
+    "#282c34", "#3c909b", /* active & sel listbox */
+    "#282c34", "#56b6c2" /* selected listbox */
+  };
+
+  const static colors ONE_LIGHT {
+    "#abb2bf", "#828997", /* root fg, bg */
+    "#282c34", "#abb2bf", /* border fg, bg */
+    "#101215", "#abb2bf", /* window fg, bg */
+    "#abb2bf", "#282c34", /* shadow fg, bg */
+    "#3b84c0", "#abb2bf", /* title fg, bg */
+    "#282c34", "#e06c75", /* button fg, bg */
+    "#e06c75", "#282c34", /* active button fg, bg */
+    "#282c34", "#56b6c2", /* checkbox fg, bg */
+    "#282c34", "#c678dd", /* active checkbox fg, bg */
+    "#282c34", "#abb2bf", /* entry box fg, bg */
+    "#282c34", "#abb2bf", /* label fg, bg */
+    "#282c34", "#56b6c2", /* listbox fg, bg */
+    "#282c34", "#c678dd", /* active listbox fg, bg */
+    "#282c34", "#828997", /* textbox fg, bg */
+    "#282c34", "#e06c75", /* active textbox fg, bg */
+    "#282c34", "#828997", /* help line */
+    "#abb2bf", "#282c34", /* root text */
+    "#be5046", /* scale empty*/
+    "#7a9f60", /* scale full*/
+    "#abb2bf", "#282c34", /* disabled entry fg, bg */
+    "#282c34", "#e06c75", /* compact button fg, bg */
+    "#282c34", "#3c909b", /* active & sel listbox */
+    "#282c34", "#56b6c2" /* selected listbox */
+  };
+};
+
 class root_window {
   public:
-  static void init() noexcept
+  static void init(const theme::colors& THEME = theme::ONE_DARK) noexcept
   {
     newtInit();
     newtCls();
+    theme::set(THEME);
   }
 
   static void finish() noexcept
@@ -193,9 +353,9 @@ inline void reflow_text(std::string& text, const int WIDTH)
   return filler;
 }
 
-void inline resize_screen(const bool REDRAW)
+void inline resize_screen(const int REDRAW)
 {
-  newtResizeScreen(static_cast<int>(REDRAW));
+  newtResizeScreen(REDRAW);
 }
 
 void inline delay(const unsigned int USECS)
@@ -678,7 +838,7 @@ class radio_button : public component {
 
   public:
   radio_button()
-      : component(nullptr)
+      : component(nullptr, ptr_type::no_delete)
   {
   }
 
@@ -713,21 +873,16 @@ class scale : public component {
 
 class textbox : public component {
   public:
-  explicit textbox(const size SIZE, const position POS = { 0, 0 }, const bool IS_SCROLLABLE = true) noexcept
+  explicit textbox(const size SIZE, const std::string_view TEXT = {""}, const position POS = { 0, 0 }, const bool IS_SCROLLABLE = true) noexcept
       // NOLINTNEXTLINE
       : component(newtTextbox(POS.left, POS.top, SIZE.width, SIZE.height, (IS_SCROLLABLE) ? NEWT_FLAG_SCROLL : 0))
   {
+    newtTextboxSetText(data.get(), TEXT.data());
   }
 
   void set_text(const std::string_view TEXT)
   {
     newtTextboxSetText(data.get(), TEXT.data());
-  }
-
-  textbox(const size SIZE, const std::string_view TEXT, const position POS = { 0, 0 }, const bool IS_SCROLLABLE = true) noexcept
-      : textbox(SIZE, POS, IS_SCROLLABLE)
-  {
-    set_text(TEXT);
   }
 
   void set_height(const int HEIGHT)
@@ -758,8 +913,8 @@ class textbox_reflowed : public component {
     newtTextboxSetText(data.get(), text.data());
   }
 
-  textbox_reflowed(const std::string_view TEXT, const int WIDTH, const position POS = { 0, 0 }) noexcept
-      : component(newtTextboxReflowed(POS.left, POS.top, nullptr, WIDTH, static_cast<int>(WIDTH / FLEX_DEVIDER), static_cast<int>(WIDTH / FLEX_DEVIDER), 0))
+  explicit textbox_reflowed(const int WIDTH, const std::string_view TEXT = {""}, const position POS = { 0, 0 }) noexcept
+      : component(newtTextboxReflowed(POS.left, POS.top, const_cast<char*>(TEXT.data()), WIDTH, static_cast<int>(WIDTH / FLEX_DEVIDER), static_cast<int>(WIDTH / FLEX_DEVIDER), 0)) // NOLINT -- newt takes char* instead of cosnt char*
   {
     set_text(TEXT);
   }
