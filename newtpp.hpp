@@ -11,6 +11,98 @@
 
 namespace newt {
 
+/*
+ *    CONCEPTS AND UTILITYS
+ */
+
+class component;
+template <class T>
+concept generic_component = requires {
+                              requires std::derived_from<T, component> or std::same_as<T, component>;
+                            };
+
+template <class T>
+concept component_collection = requires(T collection) {
+                                 requires std::derived_from<typename std::remove_cvref_t<decltype(collection.get_components())>::value_type, component>;
+                               };
+
+template <class T>
+concept component_or_collection = requires {
+                                    requires generic_component<T> or component_collection<T>;
+                                  };
+
+template <typename type>
+class conditional_ownership_ptr {
+  public:
+  using value_type = type;
+  using value_type_ptr = type*;
+  using deleter_ptr = void (*)(value_type_ptr);
+
+  private:
+  value_type_ptr data { nullptr };
+  deleter_ptr deleter { &operator delete };
+
+  public:
+  static void no_delete(value_type_ptr /*unused*/) { }
+  conditional_ownership_ptr(value_type_ptr pointer, deleter_ptr deleter_fun)
+      : data { pointer }
+      , deleter(deleter_fun)
+  {
+  }
+
+  conditional_ownership_ptr(conditional_ownership_ptr& other) noexcept
+      : data(other.data)
+      , deleter(other.deleter)
+  {
+    other.deleter = no_delete;
+  }
+
+  conditional_ownership_ptr(conditional_ownership_ptr&& other) noexcept
+      : data(other.data)
+      , deleter(other.deleter)
+  {
+    other.deleter = no_delete;
+  }
+
+  /*
+   * Allowing a copy wold mean that copying from a pointer that
+   * is currently an owner would result in two owning pointers
+   */
+  conditional_ownership_ptr& operator=(const conditional_ownership_ptr&) = delete;
+  conditional_ownership_ptr& operator=(conditional_ownership_ptr&& other) noexcept
+  {
+    deleter(data);
+
+    data = other.data;
+    deleter = other.deleter;
+    other.deleter = conditional_ownership_ptr::no_delete;
+
+    return *this;
+  }
+
+  bool operator<=>(const conditional_ownership_ptr&) const = default;
+
+  [[nodiscard]] value_type_ptr get() const
+  {
+    return data;
+  }
+
+  [[nodiscard]] value_type_ptr own()
+  {
+    deleter = no_delete;
+    return data;
+  }
+
+  ~conditional_ownership_ptr() noexcept
+  {
+    deleter(data);
+  }
+};
+
+/*
+ *      SIZING AND POSITION
+ */
+
 template <std::integral number>
 struct size_base {
   number width { 0 };
@@ -87,6 +179,10 @@ struct position : public size_base<int> {
   {
   }
 };
+
+/*
+ *     COLOR MANAGMENT
+ */
 
 namespace theme {
   struct colors {
@@ -247,6 +343,10 @@ namespace theme {
   };
 };
 
+/*
+ *    ROOT WINDOW AND OTHER FREE FUNCTIONS
+ */
+
 class root_window {
   public:
   static void init(const theme::colors& THEME = theme::ONE_DARK) noexcept
@@ -375,23 +475,58 @@ void inline cursor_off()
   newtCursorOff();
 }
 
-class component;
-template <class T>
-concept generic_component = requires {
-                              requires std::derived_from<T, component> or std::same_as<T, component>;
-                            };
+/*
+ *    GENERIC COMPNENT
+ */
 
-template <class T>
-concept component_collection = requires(T collection) {
-                                 requires std::derived_from<typename std::remove_cvref_t<decltype(collection.get_components())>::value_type, component>;
-                               };
+struct exit_info;
+class component {
+  friend exit_info;
 
-template <class T>
-concept component_or_collection = requires {
-                                    requires generic_component<T> or component_collection<T>;
-                                  };
+  public:
+  using ptr_type = conditional_ownership_ptr<std::remove_pointer<newtComponent>::type>;
 
-// Grids
+  protected:
+  ptr_type data;
+  explicit component(newtComponent COMP, auto deleter) noexcept
+      : data(COMP, deleter)
+  {
+  }
+
+  public:
+  explicit component(newtComponent COMP) noexcept
+      : data(COMP, newtComponentDestroy)
+  {
+  }
+
+  component(component& OTHER) = default;
+  component(component&& OTHER) = default;
+  component& operator=(const component&) noexcept = delete;
+  component& operator=(component&&) noexcept = default;
+  ~component() = default;
+
+  explicit operator newtComponent() const
+  {
+    return data.get();
+  }
+
+  newtComponent get_owneship()
+  {
+    return data.own();
+  }
+
+  template <generic_component component_t>
+  bool operator==(const component_t& other) const
+  {
+    return data == other.data;
+  }
+
+  /* TODO: Add general component manipulation <29-03-23, Giuseppe> */
+};
+
+/*
+ *       GRIDS
+ */
 
 struct padding {
   int left { 0 };
@@ -451,8 +586,7 @@ class grid {
   grid& operator=(const grid&) = default;
   grid& operator=(grid&&) = default;
 
-  ~grid()
-  {
+  ~grid() {
     newtGridFree(data, 1);
   }
 
@@ -497,6 +631,10 @@ class grid {
   }
 };
 
+/*
+ *         WINDOW
+ */
+
 class window {
   public:
   explicit window(const usize SIZE, const std::string_view TITLE = std::string_view {}) noexcept
@@ -529,118 +667,9 @@ class window {
   window& operator=(window&&) noexcept = delete;
 };
 
-template <typename type>
-class conditional_ownership_ptr {
-  public:
-  using value_type = type;
-  using value_type_ptr = type*;
-  using deleter_ptr = void (*)(value_type_ptr);
-
-  private:
-  value_type_ptr data { nullptr };
-  deleter_ptr deleter { &operator delete };
-
-  public:
-  static void no_delete(value_type_ptr /*unused*/) { }
-  conditional_ownership_ptr(value_type_ptr pointer, deleter_ptr deleter_fun)
-      : data { pointer }
-      , deleter(deleter_fun)
-  {
-  }
-
-  conditional_ownership_ptr(conditional_ownership_ptr& other) noexcept
-      : data(other.data)
-      , deleter(other.deleter)
-  {
-    other.deleter = no_delete;
-  }
-
-  conditional_ownership_ptr(conditional_ownership_ptr&& other) noexcept
-      : data(other.data)
-      , deleter(other.deleter)
-  {
-    other.deleter = no_delete;
-  }
-
-  /*
-   * Allowing a copy wold mean that copying from a pointer that
-   * is currently an owner would result in two owning pointers
-   */
-  conditional_ownership_ptr& operator=(const conditional_ownership_ptr&) = delete;
-  conditional_ownership_ptr& operator=(conditional_ownership_ptr&& other) noexcept
-  {
-    deleter(data);
-
-    data = other.data;
-    deleter = other.deleter;
-    other.deleter = conditional_ownership_ptr::no_delete;
-
-    return *this;
-  }
-
-  bool operator<=>(const conditional_ownership_ptr&) const = default;
-
-  [[nodiscard]] value_type_ptr get() const
-  {
-    return data;
-  }
-
-  [[nodiscard]] value_type_ptr own()
-  {
-    deleter = no_delete;
-    return data;
-  }
-
-  ~conditional_ownership_ptr() noexcept
-  {
-    deleter(data);
-  }
-};
-
-struct exit_info;
-class component {
-  friend exit_info;
-
-  public:
-  using ptr_type = conditional_ownership_ptr<std::remove_pointer<newtComponent>::type>;
-
-  protected:
-  ptr_type data;
-  explicit component(newtComponent COMP, auto deleter) noexcept
-      : data(COMP, deleter)
-  {
-  }
-
-  public:
-  explicit component(newtComponent COMP) noexcept
-      : data(COMP, newtComponentDestroy)
-  {
-  }
-
-  component(component& OTHER) = default;
-  component(component&& OTHER) = default;
-  component& operator=(const component&) noexcept = delete;
-  component& operator=(component&&) noexcept = default;
-  ~component() = default;
-
-  explicit operator newtComponent() const
-  {
-    return data.get();
-  }
-
-  newtComponent get_owneship()
-  {
-    return data.own();
-  }
-
-  template <generic_component component_t>
-  bool operator==(const component_t& other) const
-  {
-    return data == other.data;
-  }
-
-  /* TODO: Add general component manipulation <29-03-23, Giuseppe> */
-};
+/*
+ *         ALL COMPONENTS TYPES!
+ */
 
 class scroll_bar : public component {
 
