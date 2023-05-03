@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <array>
 #include <concepts>
 #include <newt.h>
@@ -6,6 +7,7 @@
 #include <string_view>
 #include <type_traits>
 #include <variant>
+#include <vector>
 
 namespace newt {
 
@@ -192,7 +194,7 @@ namespace theme {
     newtSetColors(static_cast<newtColors>(THEME));
   }
 
-  const static colors ONE_DARK {
+  constexpr static colors ONE_DARK {
     "#abb2bf", "#282c34", /* root fg, bg */
     "#282c34", "#5c6370", /* border fg, bg */
     "#101215", "#5c6370", /* window fg, bg */
@@ -218,7 +220,7 @@ namespace theme {
     "#282c34", "#56b6c2" /* selected listbox */
   };
 
-  const static colors ONE_LIGHT {
+  constexpr static colors ONE_LIGHT {
     "#abb2bf", "#828997", /* root fg, bg */
     "#282c34", "#abb2bf", /* border fg, bg */
     "#101215", "#abb2bf", /* window fg, bg */
@@ -379,6 +381,16 @@ concept generic_component = requires {
                               requires std::derived_from<T, component> or std::same_as<T, component>;
                             };
 
+template <class T>
+concept component_collection = requires(T collection) {
+                                 requires std::derived_from<typename std::remove_cvref_t<decltype(collection.get_components())>::value_type, component>;
+                               };
+
+template <class T>
+concept component_or_collection = requires {
+                                    requires generic_component<T> or component_collection<T>;
+                                  };
+
 // Grids
 
 struct padding {
@@ -407,6 +419,16 @@ class grid {
   int cols;
   int rows;
 
+  int auto_cols { 0 };
+  int auto_rows { 0 };
+
+  void increment_auto()
+  {
+    ++auto_cols;
+    auto_rows += auto_cols / cols;
+    auto_cols = auto_cols % cols;
+  }
+
   public:
   explicit grid(const int COLS, const int ROWS) noexcept
       : data(newtCreateGrid(COLS, ROWS))
@@ -415,7 +437,7 @@ class grid {
   {
   }
 
-  template <generic_component... component_types>
+  template <component_or_collection... component_types>
   explicit grid(const int COLS, const int ROWS, const component_types&... COMPONENTS) noexcept
       : data(newtCreateGrid(COLS, ROWS))
       , cols(COLS)
@@ -440,25 +462,33 @@ class grid {
     newtGridSetField(data, COL, ROW, NEWT_GRID_COMPONENT, static_cast<newtComponent>(COMPONENT), PADDING.left, PADDING.top, PADDING.right, PADDING.bottom, ANCHOR, GROW);
   }
 
+  template <generic_component component_t>
+  void auto_set_field(const component_t& COMPONENT)
+  {
+    newtGridSetField(data, auto_cols, auto_rows, NEWT_GRID_COMPONENT, static_cast<newtComponent>(COMPONENT), 0, 0, 0, (auto_rows != (rows - 1)) ? 1 : 0, 0, 0);
+    increment_auto();
+  }
+
+  template <component_collection component_t>
+  void auto_set_field(const component_t& COLLECTION)
+  {
+    const auto& COMPONENTS { COLLECTION.get_components() };
+
+    for (const auto& COMPONENT : COMPONENTS) {
+      newtGridSetField(data, auto_cols, auto_rows, NEWT_GRID_COMPONENT, static_cast<newtComponent>(COMPONENT), 0, 0, 0, (auto_rows != (rows - 1)) ? 1 : 0, 0, 0);
+      increment_auto();
+    }
+  }
+
+  template <component_or_collection... component_and_collection_t>
+  void set_fields(const component_and_collection_t&... COMPONENTS)
+  {
+    (auto_set_field(COMPONENTS), ...);
+  }
+
   std::pair<int, int> get_cols_rows()
   {
     return { cols, rows };
-  }
-
-  template <generic_component... component_types>
-  void set_fields(const component_types&... COMPONENTS)
-  {
-    int col_index { 0 };
-    int row_index { 0 };
-    for (const auto& COMP : { static_cast<newtComponent>(COMPONENTS)... }) {
-      newtGridSetField(data, col_index, row_index, NEWT_GRID_COMPONENT, COMP, 0, 0, 0, (row_index != (rows - 1)) ? 1 : 0, 0, 0);
-
-      ++col_index;
-      if (col_index >= cols) {
-        col_index = 0;
-        ++row_index;
-      }
-    }
   }
 
   explicit operator newtGrid() const
@@ -673,23 +703,31 @@ class form : public component {
     /* TODO: Implement parameters support <29-03-23, Giuseppe> */
   }
 
-  template <generic_component... components_types>
-  explicit form(components_types... components) noexcept
+  template <component_or_collection... components_and_collections_t>
+  explicit form(components_and_collections_t&... components) noexcept
       : component(newtForm(nullptr, nullptr, 0), newtFormDestroy)
   {
     add_components(components...);
   }
 
   template <generic_component component_t>
-  void add_component(component_t comp)
+  void add_component(component_t& comp)
   {
-    newtFormAddComponents(data.get(), comp.get_owneship(), nullptr);
+    newtFormAddComponent(data.get(), comp.get_owneship());
   }
 
-  template <generic_component... components_types>
-  void add_components(components_types... components)
+  template <component_collection collection_t>
+  void add_component(collection_t& comps)
   {
-    newtFormAddComponents(data.get(), components.get_owneship()..., nullptr);
+    for (auto& comp : comps.get_components()) {
+      newtFormAddComponent(data.get(), comp.get_owneship());
+    }
+  }
+
+  template <component_or_collection... collections_and_components_t>
+  void add_components(collections_and_components_t&... components)
+  {
+    (add_component(components), ...);
   }
 
   [[nodiscard]] auto run()
@@ -743,8 +781,8 @@ class form : public component {
   }
 };
 
-template <generic_component... components_types>
-[[nodiscard]] inline std::pair<exit_info, form> fast_run(const int COLS, const int ROWS, const std::string_view TITLE, components_types&... components)
+template <component_or_collection... components_and_collections_t>
+[[nodiscard]] inline std::pair<exit_info, form> fast_run(const int COLS, const int ROWS, const std::string_view TITLE, components_and_collections_t&... components)
 {
   const grid GRID { COLS, ROWS, components... };
   const window WINDOW { GRID, TITLE };
@@ -831,8 +869,8 @@ class checkbox : public component {
 };
 
 class radio_button : public component {
-  explicit radio_button(newtComponent other)
-      : component(other, newtComponentDestroy)
+  explicit radio_button(newtComponent other, ptr_type::deleter_ptr deleter_func = newtComponentDestroy)
+      : component(other, deleter_func)
   {
   }
 
@@ -847,14 +885,54 @@ class radio_button : public component {
   {
   }
 
-  radio_button get_current()
+  [[nodiscard]] radio_button get_current() const
   {
-    return radio_button { newtFormGetCurrent(data.get()) };
+    return radio_button { newtRadioGetCurrent(data.get()), ptr_type::no_delete };
   }
 
-  void set_current(const radio_button& OTHER)
+  void set_current()
   {
-    newtFormSetCurrent(data.get(), static_cast<newtComponent>(OTHER));
+    newtRadioSetCurrent(data.get());
+  }
+};
+
+class radio_button_collection {
+  std::vector<radio_button> collection {};
+
+  public:
+  template <typename... T>
+  explicit radio_button_collection(T... strings)
+  {
+    (add_radio_button(strings), ...);
+  }
+
+  [[nodiscard]] std::vector<radio_button>& get_components()
+
+  {
+    return collection;
+  }
+
+  [[nodiscard]] const std::vector<radio_button>& get_components() const
+  {
+    return collection;
+  }
+
+  [[nodiscard]] size_t get_current_index() const
+  {
+    return static_cast<size_t>(std::abs(std::distance(collection.begin(), std::find(collection.begin(), collection.end(), collection.front().get_current()))));
+  }
+
+  void set_current(const size_t INDEX)
+  {
+    collection[INDEX].set_current();
+  }
+
+  template <typename... T>
+  void add_radio_button(std::string_view TEXT, const position POS = { 0, 0 }, const bool DEFAULT = false)
+  {
+    collection.empty()
+        ? collection.emplace_back(TEXT, POS, radio_button {}, DEFAULT)
+        : collection.emplace_back(TEXT, POS, collection.back(), DEFAULT);
   }
 };
 
@@ -873,7 +951,7 @@ class scale : public component {
 
 class textbox : public component {
   public:
-  explicit textbox(const size SIZE, const std::string_view TEXT = {""}, const position POS = { 0, 0 }, const bool IS_SCROLLABLE = true) noexcept
+  explicit textbox(const size SIZE, const std::string_view TEXT, const position POS = { 0, 0 }, const bool IS_SCROLLABLE = true) noexcept
       // NOLINTNEXTLINE
       : component(newtTextbox(POS.left, POS.top, SIZE.width, SIZE.height, (IS_SCROLLABLE) ? NEWT_FLAG_SCROLL : 0))
   {
@@ -913,7 +991,7 @@ class textbox_reflowed : public component {
     newtTextboxSetText(data.get(), text.data());
   }
 
-  explicit textbox_reflowed(const int WIDTH, const std::string_view TEXT = {""}, const position POS = { 0, 0 }) noexcept
+  explicit textbox_reflowed(const int WIDTH, const std::string_view TEXT, const position POS = { 0, 0 }) noexcept
       : component(newtTextboxReflowed(POS.left, POS.top, const_cast<char*>(TEXT.data()), WIDTH, static_cast<int>(WIDTH / FLEX_DEVIDER), static_cast<int>(WIDTH / FLEX_DEVIDER), 0)) // NOLINT -- newt takes char* instead of cosnt char*
   {
     set_text(TEXT);
