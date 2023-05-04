@@ -15,13 +15,19 @@ Newtpp is a header-only C++ library that builds on the functionality of the newt
 
 ## Getting started
 
-To use newtpp, simply include the relevant header files in your C++ project:
+To use newtpp, simply clone the repository and include the relevant header files in your C++ project:
+
+`git clone https://github.com/GiuseppeCesarano/newtpp`
 
 ``` c++
 #include "newtpp/newtpp.hpp"
 ```
 
 when compiling link libnewt with `-lnewt` (clang++ or g++)
+
+## Documentation
+
+You can use the [examples](#examples) as a guide, or refer to the [docs](doc/doc.md) for the full class documentation.
 
 ## Examples
 
