@@ -363,12 +363,6 @@ The `component` class is a wrapper around a `newtComponent` object that provides
 **This class is the base class for all the components this library offers** and should not be used directly by the user.  
 However an istance of this class is returned when a form gets runned since the newt api doesn't give a way to deduce the component type.
 
-### Public Types
-
-`ptr_type`  
-
-A type alias for the `conditional_ownership_ptr` template, which is a smart pointer that can either own the object it points to or not, depending on how it was constructed and it's usage.
-
 ### Constructors
 
 ```c++
