@@ -487,13 +487,13 @@ class component {
   using ptr_type = conditional_ownership_ptr<std::remove_pointer<newtComponent>::type>;
 
   protected:
+  public:
   ptr_type data;
   explicit component(newtComponent COMP, auto deleter) noexcept
       : data(COMP, deleter)
   {
   }
 
-  public:
   explicit component(newtComponent COMP) noexcept
       : data(COMP, newtComponentDestroy)
   {
@@ -586,7 +586,8 @@ class grid {
   grid& operator=(const grid&) = default;
   grid& operator=(grid&&) = default;
 
-  ~grid() {
+  ~grid()
+  {
     newtGridFree(data, 1);
   }
 
@@ -806,7 +807,7 @@ class form : public component {
 
   component get_current()
   {
-    return component { newtFormGetCurrent(data.get()) };
+    return component { newtFormGetCurrent(data.get()), ptr_type::no_delete };
   }
 };
 
