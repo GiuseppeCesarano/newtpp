@@ -600,7 +600,7 @@ class grid {
   template <generic_component component_t>
   void auto_set_field(const component_t& COMPONENT)
   {
-    newtGridSetField(data, auto_cols, auto_rows, NEWT_GRID_COMPONENT, static_cast<newtComponent>(COMPONENT), 0, 0, 0, (auto_rows != (rows - 1)) ? 1 : 0, 0, 0);
+    newtGridSetField(data, auto_cols, auto_rows, NEWT_GRID_COMPONENT, static_cast<newtComponent>(COMPONENT), 1, 0, 1, (auto_rows != (rows - 1)) ? 1 : 0, anchor::NOWHERE, 0);
     increment_auto();
   }
 
