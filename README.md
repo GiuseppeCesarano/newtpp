@@ -31,7 +31,7 @@ You can use the [examples](#examples) as a guide, or refer to the [docs](doc/doc
 
 ## Examples
 
-### Fastes way of creating ui
+### Fastest way of creating ui
 
 ```c++
 int main()
