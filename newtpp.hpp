@@ -479,9 +479,7 @@ void inline cursor_off()
  *    GENERIC COMPNENT
  */
 
-struct exit_info;
 class component {
-  friend exit_info;
 
   public:
   using ptr_type = conditional_ownership_ptr<std::remove_pointer<newtComponent>::type>;
@@ -692,27 +690,36 @@ class scroll_bar : public component {
   }
 };
 
-using exit_reason = decltype(newtExitStruct::NEWT_EXIT_COMPONENT);
+enum exit_reason : std::underlying_type_t<decltype(newtExitStruct::NEWT_EXIT_COMPONENT)> {
+  HOTKEY = newtExitStruct::NEWT_EXIT_HOTKEY,
+  COMPONENT = newtExitStruct::NEWT_EXIT_COMPONENT,
+  TIMER = newtExitStruct::NEWT_EXIT_TIMER,
+  FDREADY = newtExitStruct::NEWT_EXIT_FDREADY,
+  ERROR = newtExitStruct::NEWT_EXIT_ERROR
+};
+
 struct exit_info {
   exit_reason reason;
   std::variant<int, component> data;
   friend component;
 
   explicit exit_info(const newtExitStruct& OTHER)
-      : reason(OTHER.reason)
+      : reason(static_cast<exit_reason>(
+            static_cast<std::underlying_type_t<decltype(newtExitStruct::NEWT_EXIT_COMPONENT)>>(
+              OTHER.reason)))
   {
     switch (reason) {
-    case exit_reason::NEWT_EXIT_HOTKEY:
+    case exit_reason::HOTKEY:
       data = OTHER.u.key;
       break;
-    case exit_reason::NEWT_EXIT_COMPONENT:
+    case exit_reason::COMPONENT:
       data = component { OTHER.u.co, component::ptr_type::no_delete };
       break;
-    case exit_reason::NEWT_EXIT_TIMER:
+    case exit_reason::TIMER:
       data = OTHER.u.watch;
       break;
-    case exit_reason::NEWT_EXIT_FDREADY:
-    case exit_reason::NEWT_EXIT_ERROR:
+    case exit_reason::FDREADY:
+    case exit_reason::ERROR:
     default:
       break;
     }
