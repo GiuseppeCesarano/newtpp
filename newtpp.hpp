@@ -701,7 +701,6 @@ enum exit_reason : std::underlying_type_t<decltype(newtExitStruct::NEWT_EXIT_COM
 struct exit_info {
   exit_reason reason;
   std::variant<int, component> data;
-  friend component;
 
   explicit exit_info(const newtExitStruct& OTHER)
       : reason(static_cast<exit_reason>(
