@@ -31,3 +31,35 @@ You can use the [examples](#examples) as a guide, or refer to the [docs](doc/doc
 
 ## Examples
 
+### Fastes way of creating ui
+
+```c++
+int main()
+{
+  newt::root_window::init(newt::theme::ONE_LIGHT);
+  newt::root_window::push_default_help_line();
+
+  newt::entrybox text_input { 30, { 0, 0 }, "You can write here!" };
+  newt::label label { "Hello I am a label" };
+  newt::radio_button_collection rb_collection { "radio_button0", "radio_button1", "radio_button2", "radio_button3" };
+  rb_collection.set_current(0);
+  newt::button confirm { "OK" };
+  newt::button del { "CANCEL" };
+
+  // Create and run form inside a window, organized with a grid of 2 cols and 4 rows
+  const auto [EXIT_INFO, FORM] = newt::fast_run(2, 4,  "Magic window title", label, text_input, rb_collection, del, confirm);
+  newt::root_window::finish();
+
+  if (newt::exit_reason::COMPONENT == EXIT_INFO.reason) { // Check if a component caused the exit
+    if (std::get<newt::component>(EXIT_INFO.data) == confirm) { // Check if it's confirm (OK) button 
+      const auto TEXT = text_input.get_value();
+      std::cout << TEXT << '\n'
+                << rb_collection.get_current_index() << '\n';
+    }
+  }
+}
+```
+
+![Screenshot of the ui we just created](doc/screenshot/1.png "Screenshot of the ui we just created")
+
+**TODO:** add more examples
