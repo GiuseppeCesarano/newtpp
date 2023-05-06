@@ -766,7 +766,7 @@ class form : public component {
     (add_component(components), ...);
   }
 
-  [[nodiscard]] auto run()
+  auto run()
   {
 
     newtExitStruct result {};
