@@ -3,11 +3,11 @@
 
 int main()
 {
-  newt::root_window::init();
+  newt::root_window root;
 
   /* Positioning is relative to the last window created *
    * in win costructor it's relative to the root window */
-  newt::window win { newt::usize { 50, 8 } }; 
+  newt::window win { newt::usize { 50, 8 } };
 
   // Now is relative to win
   newt::label text { "Hello, could you please press ok?", { 10, 1 } };
@@ -16,6 +16,4 @@ int main()
   newt::form simple_message { text, ok_button };
 
   simple_message.run();
-
-  newt::root_window::finish();
 }

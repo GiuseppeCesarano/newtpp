@@ -67,7 +67,7 @@ int main()
 ```c++
 int main()
 {
-  newt::root_window::init();
+  newt::root_window root;
 
   /* Positioning is relative to the last window created *
    * in win costructor it's relative to the root window */
@@ -80,8 +80,6 @@ int main()
   newt::form simple_message { text, ok_button };
 
   simple_message.run();
-
-  newt::root_window::finish();
 }
 ```
 

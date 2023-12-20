@@ -3,6 +3,7 @@
 #include <array>
 #include <concepts>
 #include <newt.h>
+#include <span>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -18,18 +19,8 @@ namespace newt {
 class component;
 template <class T>
 concept generic_component = requires {
-                              requires std::derived_from<T, component> or std::same_as<T, component>;
-                            };
-
-template <class T>
-concept component_collection = requires(T collection) {
-                                 requires std::derived_from<typename std::remove_cvref_t<decltype(collection.get_components())>::value_type, component>;
-                               };
-
-template <class T>
-concept component_or_collection = requires {
-                                    requires generic_component<T> or component_collection<T>;
-                                  };
+  requires std::derived_from<T, component> or std::same_as<T, component>;
+};
 
 template <typename type>
 class conditional_ownership_ptr {
@@ -40,7 +31,7 @@ class conditional_ownership_ptr {
 
   private:
   value_type_ptr data { nullptr };
-  deleter_ptr deleter { &operator delete };
+  deleter_ptr deleter { no_delete };
 
   public:
   static void no_delete(value_type_ptr /*unused*/) { }
@@ -69,6 +60,7 @@ class conditional_ownership_ptr {
    * is currently an owner would result in two owning pointers
    */
   conditional_ownership_ptr& operator=(const conditional_ownership_ptr&) = delete;
+
   conditional_ownership_ptr& operator=(conditional_ownership_ptr&& other) noexcept
   {
     deleter(data);
@@ -81,6 +73,16 @@ class conditional_ownership_ptr {
   }
 
   bool operator<=>(const conditional_ownership_ptr&) const = default;
+
+  value_type_ptr operator*()
+  {
+    return data;
+  }
+
+  value_type_ptr operator*() const
+  {
+    return data;
+  }
 
   [[nodiscard]] value_type_ptr get() const
   {
@@ -361,12 +363,20 @@ class root_window {
     newtFinished();
   }
 
-  root_window() = delete;
+  explicit root_window(const theme::colors& THEME = theme::ONE_DARK)
+  {
+    init(THEME);
+  }
+
   root_window(root_window&) = delete;
-  root_window(root_window&&) = delete;
+  root_window(root_window&&) = default;
   root_window& operator=(root_window&) = delete;
   root_window& operator=(root_window&&) = delete;
-  ~root_window() = delete;
+
+  ~root_window()
+  {
+    finish();
+  }
 
   static void draw_text(const position POS, const std::string_view TEXT)
   {
@@ -503,12 +513,12 @@ class component {
   component& operator=(component&&) noexcept = default;
   ~component() = default;
 
-  explicit operator newtComponent() const
+  newtComponent operator*() const
   {
-    return data.get();
+    return *data;
   }
 
-  newtComponent get_owneship()
+  newtComponent own()
   {
     return data.own();
   }
@@ -519,9 +529,25 @@ class component {
     return data == other.data;
   }
 
+  std::span<component> as_range()
+  {
+    return std::span { this, 1 };
+  }
+
+  [[nodiscard]] std::span<const component> as_range() const
+  {
+    return std::span { this, 1 };
+  }
+
   /* TODO: Add general component manipulation <29-03-23, Giuseppe> */
 };
 
+template <typename T>
+concept component_range = requires(T obj) {
+  {
+    obj.as_range()
+  } -> std::same_as<std::span<component>>;
+};
 /*
  *       GRIDS
  */
@@ -570,8 +596,8 @@ class grid {
   {
   }
 
-  template <component_or_collection... component_types>
-  explicit grid(const int COLS, const int ROWS, const component_types&... COMPONENTS) noexcept
+  template <component_range... ranges>
+  explicit grid(const int COLS, const int ROWS, const ranges&... COMPONENTS) noexcept
       : data(newtCreateGrid(COLS, ROWS))
       , cols(COLS)
       , rows(ROWS)
@@ -592,31 +618,20 @@ class grid {
   template <generic_component component_t>
   void set_field(const int COL, const int ROW, const component_t& COMPONENT, const padding PADDING = {}, const int ANCHOR = anchor::NOWHERE, const int GROW = grow::NO)
   {
-    newtGridSetField(data, COL, ROW, NEWT_GRID_COMPONENT, static_cast<newtComponent>(COMPONENT), PADDING.left, PADDING.top, PADDING.right, PADDING.bottom, ANCHOR, GROW);
+    newtGridSetField(data, COL, ROW, NEWT_GRID_COMPONENT, *COMPONENT, PADDING.left, PADDING.top, PADDING.right, PADDING.bottom, ANCHOR, GROW);
   }
 
-  template <generic_component component_t>
-  void auto_set_field(const component_t& COMPONENT)
+  template <component_range... ranges>
+  void set_fields(const ranges&... COMPONENTS)
   {
-    newtGridSetField(data, auto_cols, auto_rows, NEWT_GRID_COMPONENT, static_cast<newtComponent>(COMPONENT), 1, 0, 1, (auto_rows != (rows - 1)) ? 1 : 0, anchor::NOWHERE, 0);
-    increment_auto();
-  }
+    auto set { [&]<component_range range>(const range& COMP) {
+      for (const auto& COMPONENT : COMP.as_range()) {
+        newtGridSetField(data, auto_cols, auto_rows, NEWT_GRID_COMPONENT, *COMPONENT, 0, 0, 0, (auto_rows != (rows - 1)) ? 1 : 0, 0, 0);
+        increment_auto();
+      }
+    } };
 
-  template <component_collection component_t>
-  void auto_set_field(const component_t& COLLECTION)
-  {
-    const auto& COMPONENTS { COLLECTION.get_components() };
-
-    for (const auto& COMPONENT : COMPONENTS) {
-      newtGridSetField(data, auto_cols, auto_rows, NEWT_GRID_COMPONENT, static_cast<newtComponent>(COMPONENT), 0, 0, 0, (auto_rows != (rows - 1)) ? 1 : 0, 0, 0);
-      increment_auto();
-    }
-  }
-
-  template <component_or_collection... component_and_collection_t>
-  void set_fields(const component_and_collection_t&... COMPONENTS)
-  {
-    (auto_set_field(COMPONENTS), ...);
+    (set(COMPONENTS), ...);
   }
 
   std::pair<int, int> get_cols_rows()
@@ -649,9 +664,9 @@ class window {
   [[nodiscard]] explicit window(const grid& GRID, const std::string_view TITLE = {}) noexcept
   {
     /* I hate that i had to use const cast but newt is not consistent with
-     its API, why does newtGridWrappedWindow takes a char* and other methods
-     to construct windows instead are taking const char*
-     NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast) */
+       its API, why does newtGridWrappedWindow takes a char* and other methods
+       to construct windows instead are taking const char*
+       NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast) */
     newtGridWrappedWindow(static_cast<newtGrid>(GRID), const_cast<char*>(TITLE.data()));
   }
 
@@ -681,12 +696,12 @@ class scroll_bar : public component {
 
   void set(const int WHERE, const int TOTAL)
   {
-    newtScrollbarSet(data.get(), WHERE, TOTAL);
+    newtScrollbarSet(*data, WHERE, TOTAL);
   }
 
   void set_color(const int NORMAL, const int THUMB)
   {
-    newtScrollbarSetColors(data.get(), NORMAL, THUMB);
+    newtScrollbarSetColors(*data, NORMAL, THUMB);
   }
 };
 
@@ -703,9 +718,7 @@ struct exit_info {
   std::variant<int, component> data;
 
   explicit exit_info(const newtExitStruct& OTHER)
-      : reason(static_cast<exit_reason>(
-            static_cast<std::underlying_type_t<decltype(newtExitStruct::NEWT_EXIT_COMPONENT)>>(
-              OTHER.reason)))
+      : reason(static_cast<exit_reason>(OTHER.reason))
   {
     switch (reason) {
     case exit_reason::HOTKEY:
@@ -720,6 +733,7 @@ struct exit_info {
     case exit_reason::FDREADY:
     case exit_reason::ERROR:
     default:
+      data = -1;
       break;
     }
   }
@@ -734,91 +748,82 @@ class form : public component {
 
   /* TODO:  what the fuck is helptag? <02-04-23, Giuseppe> */
   explicit form(scroll_bar& bar, void* help_tag = nullptr, const int FLAGS = 0) noexcept
-      : component(newtForm(bar.get_owneship(), help_tag, FLAGS), newtFormDestroy)
+      : component(newtForm(bar.own(), help_tag, FLAGS), newtFormDestroy)
   {
     /* TODO: Implement parameters support <29-03-23, Giuseppe> */
   }
 
-  template <component_or_collection... components_and_collections_t>
-  explicit form(components_and_collections_t&... components) noexcept
+  template <component_range... ranges>
+  explicit form(ranges&... components) noexcept
       : component(newtForm(nullptr, nullptr, 0), newtFormDestroy)
   {
     add_components(components...);
   }
 
-  template <generic_component component_t>
-  void add_component(component_t& comp)
+  template <component_range... ranges>
+  void add_components(ranges&... components)
   {
-    newtFormAddComponent(data.get(), comp.get_owneship());
+    auto add { [&]<component_range range>(range& comp) {
+      for (auto& comp : comp.as_range()) {
+        newtFormAddComponent(*data, comp.own());
+      }
+    } };
+
+    (add(components), ...);
   }
 
-  template <component_collection collection_t>
-  void add_component(collection_t& comps)
+  exit_info run()
   {
-    for (auto& comp : comps.get_components()) {
-      newtFormAddComponent(data.get(), comp.get_owneship());
-    }
-  }
-
-  template <component_or_collection... collections_and_components_t>
-  void add_components(collections_and_components_t&... components)
-  {
-    (add_component(components), ...);
-  }
-
-  auto run()
-  {
-
     newtExitStruct result {};
-    newtFormRun(data.get(), &result);
+    newtFormRun(*data, &result);
 
     return exit_info { result };
   }
 
   void add_hot_key(const int KEY)
   {
-    newtFormAddHotKey(data.get(), KEY);
+    newtFormAddHotKey(*data, KEY);
   }
 
   void watch_fd(const int FILE_DESCRIPTOR, const int FLAGS)
   {
-    newtFormWatchFd(data.get(), FILE_DESCRIPTOR, FLAGS);
+    newtFormWatchFd(*data, FILE_DESCRIPTOR, FLAGS);
   }
 
   void draw_form()
   {
-    newtDrawForm(data.get());
+    newtDrawForm(*data);
   }
 
   template <generic_component component_t>
   void set_current(const component_t& comp)
   {
-    newtFormSetCurrent(data.get(), static_cast<newtComponent>(comp));
+    newtFormSetCurrent(*data, *comp);
   }
 
   void set_background(const int COLOR)
   {
-    newtFormSetBackground(data.get(), COLOR);
+    newtFormSetBackground(*data, COLOR);
   }
 
   void set_height(const int HEIGHT)
   {
-    newtFormSetHeight(data.get(), HEIGHT);
+    newtFormSetHeight(*data, HEIGHT);
   }
 
   void set_width(const int WIDTH)
   {
-    newtFormSetWidth(data.get(), WIDTH);
+    newtFormSetWidth(*data, WIDTH);
   }
 
   component get_current()
   {
-    return component { newtFormGetCurrent(data.get()), ptr_type::no_delete };
+    return component { newtFormGetCurrent(*data), component::ptr_type::no_delete };
   }
 };
 
-template <component_or_collection... components_and_collections_t>
-[[nodiscard]] inline std::pair<exit_info, form> fast_run(const int COLS, const int ROWS, const std::string_view TITLE, components_and_collections_t&... components)
+template <component_range... ranges>
+[[nodiscard]] inline std::pair<exit_info, form> fast_run(const int COLS, const int ROWS, const std::string_view TITLE, ranges&... components)
 {
   const grid GRID { COLS, ROWS, components... };
   const window WINDOW { GRID, TITLE };
@@ -852,12 +857,12 @@ class label : public component {
 
   void set_text(const std::string_view TEXT)
   {
-    newtLabelSetText(data.get(), TEXT.data());
+    newtLabelSetText(*data, TEXT.data());
   }
 
   void set_colors(const int COLOR_SET)
   {
-    newtLabelSetColors(data.get(), COLOR_SET);
+    newtLabelSetColors(*data, COLOR_SET);
   }
 };
 
@@ -873,7 +878,7 @@ class entrybox : public component {
 
   void set_value(const std::string_view TEXT, const bool CURSOR_AT_END = true)
   {
-    newtEntrySet(data.get(), TEXT.data(), static_cast<int>(CURSOR_AT_END));
+    newtEntrySet(*data, TEXT.data(), static_cast<int>(CURSOR_AT_END));
   }
 
   std::string_view get_value()
@@ -893,12 +898,12 @@ class checkbox : public component {
 
   char get_value()
   {
-    return newtCheckboxGetValue(data.get());
+    return newtCheckboxGetValue(*data);
   }
 
   void set_value(const char VALUE)
   {
-    newtCheckboxSetValue(data.get(), VALUE);
+    newtCheckboxSetValue(*data, VALUE);
   }
 
   /* TODO: add set_flags flags <30-03-23, Giuseppe> */
@@ -917,18 +922,18 @@ class radio_button : public component {
   }
 
   explicit radio_button(std::string_view TEXT, const position POS = { 0, 0 }, const radio_button& PREVIUS = {}, bool IS_DEFAULT = false) noexcept
-      : component(newtRadiobutton(POS.left, POS.top, TEXT.data(), static_cast<int>(IS_DEFAULT), static_cast<newtComponent>(PREVIUS)))
+      : component(newtRadiobutton(POS.left, POS.top, TEXT.data(), static_cast<int>(IS_DEFAULT), *PREVIUS))
   {
   }
 
   [[nodiscard]] radio_button get_current() const
   {
-    return radio_button { newtRadioGetCurrent(data.get()), ptr_type::no_delete };
+    return radio_button { newtRadioGetCurrent(*data), ptr_type::no_delete };
   }
 
   void set_current()
   {
-    newtRadioSetCurrent(data.get());
+    newtRadioSetCurrent(*data);
   }
 };
 
@@ -942,15 +947,14 @@ class radio_button_collection {
     (add_radio_button(strings), ...);
   }
 
-  [[nodiscard]] std::vector<radio_button>& get_components()
-
+  std::span<component> as_range()
   {
-    return collection;
+    return std::span { reinterpret_cast<component*>(collection.data()), collection.size() };
   }
 
-  [[nodiscard]] const std::vector<radio_button>& get_components() const
+  [[nodiscard]] std::span<const component> as_range() const
   {
-    return collection;
+    return std::span { reinterpret_cast<const component*>(collection.data()), collection.size() };
   }
 
   [[nodiscard]] size_t get_current_index() const
@@ -981,7 +985,7 @@ class scale : public component {
 
   void set_value(const unsigned long long VALUE)
   {
-    newtScaleSet(data.get(), VALUE);
+    newtScaleSet(*data, VALUE);
   }
 };
 
@@ -991,28 +995,28 @@ class textbox : public component {
       // NOLINTNEXTLINE
       : component(newtTextbox(POS.left, POS.top, SIZE.width, SIZE.height, (IS_SCROLLABLE) ? NEWT_FLAG_SCROLL : 0))
   {
-    newtTextboxSetText(data.get(), TEXT.data());
+    newtTextboxSetText(*data, TEXT.data());
   }
 
   void set_text(const std::string_view TEXT)
   {
-    newtTextboxSetText(data.get(), TEXT.data());
+    newtTextboxSetText(*data, TEXT.data());
   }
 
   void set_height(const int HEIGHT)
   {
-    newtTextboxSetHeight(data.get(), HEIGHT);
+    newtTextboxSetHeight(*data, HEIGHT);
   }
 
   [[nodiscard]] int get_num_lines() const
   {
-    return newtTextboxGetNumLines(data.get());
+    return newtTextboxGetNumLines(*data);
   }
 
   // NOLINTNEXTLINE -- still the best way
   void set_colors(const int NORMAL, const int ACTIVE)
   {
-    newtTextboxSetColors(data.get(), NORMAL, ACTIVE);
+    newtTextboxSetColors(*data, NORMAL, ACTIVE);
   }
 };
 
@@ -1024,7 +1028,7 @@ class textbox_reflowed : public component {
   void set_text(const std::string_view TEXT)
   {
     text = TEXT;
-    newtTextboxSetText(data.get(), text.data());
+    newtTextboxSetText(*data, text.data());
   }
 
   explicit textbox_reflowed(const int WIDTH, const std::string_view TEXT, const position POS = { 0, 0 }) noexcept
@@ -1035,18 +1039,18 @@ class textbox_reflowed : public component {
 
   void set_height(const int HEIGHT)
   {
-    newtTextboxSetHeight(data.get(), HEIGHT);
+    newtTextboxSetHeight(*data, HEIGHT);
   }
 
   [[nodiscard]] int get_num_lines() const
   {
-    return newtTextboxGetNumLines(data.get());
+    return newtTextboxGetNumLines(*data);
   }
 
   // NOLINTNEXTLINE -- still the best way
   void set_colors(const int NORMAL, const int ACTIVE)
   {
-    newtTextboxSetColors(data.get(), NORMAL, ACTIVE);
+    newtTextboxSetColors(*data, NORMAL, ACTIVE);
   }
 };
 
